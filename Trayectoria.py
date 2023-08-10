@@ -1,12 +1,38 @@
 import numpy as np
-import matplotlib.pyplot as plt
-
+#import matplotlib.pyplot as plt
+import sympy as sp
+import pandas as pd
 
 #-------------------------------------------------------------------------
 #
 #                       Funciones de la trayectoria
 #
 #-------------------------------------------------------------------------
+
+def symTfromDH(theta, d, a, alpha):
+    # theta y alpha en radianes
+    # d y a en metros
+    Rz = sp.Matrix([[sp.cos(theta), -sp.sin(theta), 0, 0],
+                   [sp.sin(theta), sp.cos(theta), 0, 0],
+                   [0, 0, 1, 0],
+                   [0, 0, 0, 1]])
+    tz = sp.Matrix([[1, 0, 0, 0],
+                   [0, 1, 0, 0],
+                   [0, 0, 1, d],
+                   [0, 0, 0, 1]])
+    ta = sp.Matrix([[1, 0, 0, a],
+                   [0, 1, 0, 0],
+                   [0, 0, 1, 0],
+                   [0, 0, 0, 1]])
+    Rx = sp.Matrix([[1, 0, 0, 0],
+                   [0, sp.cos(alpha), -sp.sin(alpha), 0],
+                   [0, sp.sin(alpha), sp.cos(alpha), 0],
+                   [0, 0, 0, 1]])
+    T = Rz*tz*ta*Rx
+    return T
+
+
+
 def find_intersection_points(center, radius, line_slope, line_intercept):
     a = 1 + line_slope**2
     b = -2 * center[0] + 2 * line_slope * (line_intercept - center[1])
@@ -53,14 +79,27 @@ def create_oval_through_points(point1, point2, altura):
 #
 #------------------------------------------------------------------------
 
+# Descripción de Denavit-Hartenberg (a = largo de la extremidad (en metros))
+#      theta     |      d      |      a      |    alpha
+# ----------------------------------------------------------
+#       q1             0             0.2            0
+#       q2             0             0.2            0
+
+
+largo_extremidad = 0.2
+q1 = sp.symbols('q1')
+q2 = sp.symbols('q2')
+
+T = sp.simplify(symTfromDH(q1, 0, largo_extremidad, 0)* symTfromDH(q2, 0, largo_extremidad, 0))
+
 # Parámetros de la circunferencia y la recta
 center = (0, 0)
-radius = 0.4
+radius = largo_extremidad * 2
 line_slope = 0
-line_intercept = 0.3
+altura_actual = 0.3
 
 # Encontrar puntos de intersección
-intersection_points = find_intersection_points(center, radius, line_slope, line_intercept)
+intersection_points = find_intersection_points(center, radius, line_slope, altura_actual)
 
 # Puntos que definen el óvalo
 point1 = intersection_points[0]
@@ -68,12 +107,12 @@ point2 = intersection_points[1]
 
 # Crear el óvalo que pasa por los puntos dados
 #                                               , altura)
-x, y = create_oval_through_points(point1, point2, 0.3)
+x, y = create_oval_through_points(point1, point2, altura_actual)
 
 mov_x = []
 mov_y = []
 for i in range(len(y)):
-    if y[i] <= 0.3: # Si es menor que la distancia del robot al piso se puede elevar la pata
+    if y[i] <= altura_actual: # Si es menor que la distancia del robot al piso se puede elevar la pata
         mov_x.append(x[i])
         mov_y.append(y[i])
 
@@ -87,3 +126,22 @@ aux1 = [0.3 for i in range(len(mov_y))]
 mov_y = mov_y + aux1
 aux1 = np.linspace(mov_x[len(mov_x)-1], mov_x[1], len(mov_x))
 mov_x = np.concatenate((mov_x,aux1))
+
+df = pd.DataFrame(columns=['Muslo', 'Rodilla'])
+
+# Levantamiento de pata hacia delante y Arrastre, LADO Derecho
+for i in range(len(mov_y)):
+    a=mov_y[i]
+    b=mov_x[i]
+    # definimos las ecuaciones a resolver
+    ec1, ec2 = T[3]-a, T[7]-b
+    (ec1, ec2)
+    # ahora resolvemos la ecuación utilizando nsolve()
+    try:
+        q = sp.nsolve((ec1, ec2),(q1,q2),(1,-1), prec=6)
+        df.loc[len(df)] = {'Muslo': q[0], 'Rodilla': q[1]}
+    except:
+        print(a,b)
+        print("no se pudo calcular")
+        q = [0, 0, 0]
+        
